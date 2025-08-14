@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Snowflake DDL Parser</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .input-section {
+            margin-bottom: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .output-section {
+            margin-top: 30px;
+        }
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            table-layout: auto;
+        }
+        th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            position: relative;
+            user-select: none;
+        }
+        th.resizable::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: rgba(255,255,255,0.3);
+            cursor: col-resize;
+        }
+        th.resizable:hover::after {
+            background: rgba(255,255,255,0.6);
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            vertical-align: top;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        tr:hover {
+            background: #f7fafc;
+        }
+        .source-expression {
+            font-family: 'Courier New', monospace;
+            background: #f7fafc;
+            padding: 4px 6px;
+            border-radius: 4px;
+            word-break: break-all;
+            max-width: 400px;
+            display: inline-block;
+        }
+        .copy-btn {
+            background: #48bb78;
+            font-size: 12px;
+            padding: 8px 15px;
+            margin-top: 10px;
+        }
+        .copy-btn:hover {
+            background: #38a169;
+        }
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .info {
+            background: #bee3f8;
+            color: #2b6cb0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .debug-info {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .alias-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        .alias-table {
+            background: #c6f6d5;
+            color: #276749;
+        }
+        .alias-subquery {
+            background: #fbb6ce;
+            color: #97266d;
+        }
+        .alias-cte {
+            background: #ddd6fe;
+            color: #6b21a8;
+        }
+        .warning {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Enhanced Snowflake DDL Parser</h1>
+        
+        <div class="info">
+            <strong>How to use:</strong> Paste your complete Snowflake CREATE VIEW DDL below. This enhanced version:
+            <ul style="margin: 5px 0;">
+                <li>✅ Parses the full view structure including column definitions</li>
+                <li>✅ Handles complex LEFT/RIGHT/INNER JOIN with subqueries</li>
+                <li>✅ Detects all table and subquery aliases (like 'ukg' in your example)</li>
+                <li>✅ Supports QUALIFY, PARTITION BY, and window functions</li>
+                <li>✅ Maps source columns to target view columns accurately</li>
+            </ul>
+        </div>
+
+        <div class="input-section">
+            <label for="ddlInput">Paste your complete Snowflake DDL here:</label>
+            <textarea id="ddlInput" placeholder="CREATE OR REPLACE VIEW schema.view_name(
+    column1,
+    column2
+) AS
+SELECT 
+    m2.email as column1,
+    ukg.atb_sls_id as column2
+FROM main_table m2
+LEFT JOIN (
+    SELECT UPPER(email_address) as email_address,
+           atb_sls_id,
+           is_active
+    FROM COOKED.PREP_ZUMZ.VW_EMPLOYEES
+    QUALIFY row_number() over (partition by email_address order by date_of_last_hire DESC) = 1
+) ukg ON m2.email = ukg.email_address;"></textarea>
+        </div>
+
+        <button onclick="parseDDL()">🚀 Parse DDL</button>
+        <button onclick="clearAll()">🗑️ Clear</button>
+        <button onclick="loadExample()">📝 Load Example</button>
+        <button onclick="loadYourExample()">📄 Load Your Example</button>
+        <button onclick="showDebugInfo()" style="background: #e53e3e;">🔍 Show Debug Info</button>
+
+        <div class="output-section">
+            <div id="output"></div>
+        </div>
+        
+        <div id="debugSection" style="display: none;"></div>
+    </div>
+
+    <script>
+        let lastParsedMapping = null;
+        let debugData = {};
+
+        function parseDDL() {
+            const ddlText = document.getElementById('ddlInput').value.trim();
+            const outputDiv = document.getElementById('output');
+            
+            if (!ddlText) {
+                outputDiv.innerHTML = '<div class="error">Please paste your DDL first!</div>';
+                return;
+            }
+
+            try {
+                const mapping = extractSourceTargetMapping(ddlText);
+                lastParsedMapping = mapping;
+                displayMapping(mapping);
+            } catch (error) {
+                outputDiv.innerHTML = `<div class="error">Error parsing DDL: ${error.message}<br><br>Stack trace:<br>${error.stack}</div>`;
+                console.error('Parse error:', error);
+            }
+        }
+
+        function extractSourceTargetMapping(ddlText) {
+            // Initialize debug data
+            debugData = {
+                originalDDL: ddlText,
+                cleanedDDL: '',
+                viewColumns: [],
+                viewComment: '',
+                selectFields: [],
+                aliases: {},
+                subqueries: [],
+                joins: []
+            };
+
+            // Clean up the DDL text - handle both // and -- comments
+            const cleanDDL = ddlText
+                .replace(/\/\/[^\n]*\n/g, '\n')  // Remove // comments
+                .replace(/--[^\n]*\n/g, '\n')  // Remove -- comments
+                .replace(/\/\*[\s\S]*?\*\//g, ' ') // Remove multi-line comments
+                .trim();
+
+            debugData.cleanedDDL = cleanDDL;
+
+            // Extract view name, columns, and comment
+            // Updated regex to capture the COMMENT clause separately
+            const viewMatch = cleanDDL.match(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+([^\s(]+)(?:\s*\(([\s\S]*?)\))?\s*(?:COMMENT\s*=\s*'([^']*)')?\s*[Aa][Ss]\s/i);
+            if (!viewMatch) {
+                throw new Error('Could not parse CREATE VIEW statement');
+            }
+
+            const viewName = viewMatch[1];
+            const viewColumnsDef = viewMatch[2];
+            const viewComment = viewMatch[3] || '';
+            
+            // Parse view columns if defined
+            let viewColumns = [];
+            if (viewColumnsDef) {
+                viewColumns = parseViewColumns(viewColumnsDef);
+            }
+            debugData.viewColumns = viewColumns;
+            debugData.viewComment = viewComment;
+
+            // Extract the SELECT query after AS
+            const asMatch = cleanDDL.match(/(?:COMMENT\s*=\s*'[^']*'\s*)?[Aa][Ss]\s+([\s\S]+)$/i) || 
+                          cleanDDL.match(/\)\s*[Aa][Ss]\s+([\s\S]+)$/i) || 
+                          cleanDDL.match(/[Aa][Ss]\s+([\s\S]+)$/i);
+            if (!asMatch) {
+                throw new Error('Could not find AS clause in DDL');
+            }
+
+            const mainQuery = asMatch[1].trim();
+            
+            // Parse the query structure
+            const queryStructure = parseCompleteQuery(mainQuery, viewColumns);
+            queryStructure.viewName = viewName;
+            queryStructure.viewColumns = viewColumns;
+            queryStructure.viewComment = viewComment;
+
+            return queryStructure;
+        }
+
+        function parseViewColumns(columnsDef) {
+            const columns = [];
+            const lines = columnsDef.split(',');
+            
+            lines.forEach(line => {
+                line = line.trim();
+                if (line) {
+                    // Match column with optional COMMENT
+                    const match = line.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:COMMENT\s*'([^']*)')?/i);
+                    if (match) {
+                        columns.push({
+                            name: match[1],
+                            comment: match[2] || ''
+                        });
+                    }
+                }
+            });
+            
+            return columns;
+        }
+
+        function parseCompleteQuery(queryText, viewColumns) {
+            // Check for CTEs
+            const ctes = parseCTEs(queryText);
+            let mainSelectQuery = queryText;
+            
+            if (ctes.length > 0) {
+                // Remove CTE portion to get main SELECT
+                const withMatch = queryText.match(/WITH\s+[\s\S]*?\)\s+(SELECT[\s\S]+)$/i);
+                if (withMatch) {
+                    mainSelectQuery = withMatch[1];
+                }
+            }
+
+            // More flexible regex to handle various SQL formats
+            // Look for SELECT...FROM pattern more loosely
+            let selectClause, fromAndJoinsClause;
+            
+            // First try the standard pattern
+            let selectMatch = mainSelectQuery.match(/^\s*SELECT\s+([\s\S]*?)\s+FROM\s+([\s\S]*)$/i);
+            
+            if (!selectMatch) {
+                // Try without anchors
+                selectMatch = mainSelectQuery.match(/SELECT\s+([\s\S]*?)FROM\s+([\s\S]*)/i);
+                if (!selectMatch) {
+                    throw new Error('Could not parse SELECT statement structure');
+                }
+            }
+            
+            selectClause = selectMatch[1];
+            fromAndJoinsClause = selectMatch[2];
+            
+            // Clean up any trailing semicolon or whitespace from the FROM clause
+            fromAndJoinsClause = fromAndJoinsClause.replace(/\s*;\s*$/, '').trim();
+            
+            debugData.selectClause = selectClause;
+            debugData.fromAndJoinsClause = fromAndJoinsClause;
+
+            // Parse all table aliases including subqueries
+            const allAliases = parseAllTableAliases(fromAndJoinsClause, ctes);
+            debugData.aliases = allAliases;
+
+            // Parse SELECT fields
+            const selectFields = parseSelectFields(selectClause);
+            debugData.selectFields = selectFields;
+
+            // Map SELECT fields to view columns
+            const fieldMappings = mapFieldsToViewColumns(selectFields, viewColumns, allAliases);
+
+            // Extract join information
+            const joinInfo = extractCompleteJoinInfo(fromAndJoinsClause);
+            debugData.joins = joinInfo;
+
+            return {
+                level: 1,
+                fields: fieldMappings,
+                joinInfo: joinInfo,
+                ctes: ctes,
+                aliases: allAliases,
+                rawSelectFields: selectFields
+            };
+        }
+
+        function parseCTEs(query) {
+            const ctes = [];
+            const cteMatch = query.match(/^\s*WITH\s+([\s\S]*?)(?=\s+SELECT)/i);
+            
+            if (cteMatch) {
+                const cteSection = cteMatch[1];
+                // Simple CTE parsing - can be enhanced for complex cases
+                const ctePattern = /([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(([\s\S]*?)\)(?:\s*,|\s*$)/gi;
+                let match;
+                
+                while ((match = ctePattern.exec(cteSection)) !== null) {
+                    ctes.push({
+                        name: match[1],
+                        query: match[2],
+                        type: 'CTE'
+                    });
+                }
+            }
+            
+            return ctes;
+        }
+
+        function parseAllTableAliases(fromAndJoinsClause, ctes = []) {
+            const aliases = {};
+            
+            // Add CTE aliases
+            ctes.forEach(cte => {
+                aliases[cte.name] = `CTE:${cte.name}`;
+            });
+
+            // Store original for subquery extraction
+            const originalClause = fromAndJoinsClause;
+            
+            // Remove line breaks and extra spaces for easier parsing
+            const cleanedClause = fromAndJoinsClause.replace(/\s+/g, ' ').trim();
+
+            // Parse main FROM table or subquery
+            // Check if FROM starts with a subquery
+            if (cleanedClause.match(/^\s*\(/)) {
+                // FROM clause starts with subquery
+                const subqueryEnd = findMatchingParen(cleanedClause, 0);
+                const afterSubquery = cleanedClause.substring(subqueryEnd + 1).trim();
+                const aliasMatch = afterSubquery.match(/^([a-zA-Z_][a-zA-Z0-9_]*)/);
+                if (aliasMatch) {
+                    aliases[aliasMatch[1]] = `SUBQUERY:${aliasMatch[1]}`;
+                    
+                    // Extract full subquery content (use original to preserve formatting)
+                    const subqueryStart = originalClause.indexOf('(');
+                    const subqueryEndOriginal = findMatchingParen(originalClause, subqueryStart);
+                    const subqueryContent = originalClause.substring(subqueryStart + 1, subqueryEndOriginal);
+                    
+                    debugData.subqueries.push({
+                        alias: aliasMatch[1],
+                        location: 'FROM',
+                        type: 'FROM_SUBQUERY',
+                        query: subqueryContent
+                    });
+                }
+            } else {
+                // FROM clause starts with regular table
+                const fromMatch = cleanedClause.match(/^([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i);
+                if (fromMatch) {
+                    aliases[fromMatch[2]] = fromMatch[1];
+                } else {
+                    // Maybe single table without alias
+                    const singleTableMatch = cleanedClause.match(/^([a-zA-Z_][a-zA-Z0-9_.]*)\s*(?:LEFT|RIGHT|INNER|FULL|CROSS|WHERE|ORDER|GROUP|$)/i);
+                    if (singleTableMatch) {
+                        // Table without explicit alias - use table name as alias
+                        const tableName = singleTableMatch[1];
+                        const tableAlias = tableName.split('.').pop();
+                        aliases[tableAlias] = tableName;
+                    }
+                }
+            }
+
+            // Parse all JOINs (pass original clause for better subquery extraction)
+            parseJoinAliases(originalClause, aliases);
+
+            return aliases;
+        }
+
+        function findMatchingParen(str, startIdx) {
+            let depth = 0;
+            for (let i = startIdx; i < str.length; i++) {
+                if (str[i] === '(') depth++;
+                if (str[i] === ')') {
+                    depth--;
+                    if (depth === 0) return i;
+                }
+            }
+            return -1;
+        }
+
+        function parseJoinAliases(clause, aliases) {
+            // Find all JOIN occurrences - handle multi-line and comments
+            const joinPattern = /(?:LEFT|RIGHT|INNER|FULL|CROSS)?\s*JOIN\s*/gim;
+            let match;
+            
+            while ((match = joinPattern.exec(clause)) !== null) {
+                const afterJoinPos = match.index + match[0].length;
+                let afterJoin = clause.substring(afterJoinPos);
+                
+                // Skip any comments after JOIN
+                afterJoin = afterJoin.replace(/^\s*\/\/[^\n]*\n\s*/, '').trim();
+                
+                if (afterJoin.startsWith('(')) {
+                    // JOIN with subquery
+                    const subqueryEnd = findMatchingParen(afterJoin, 0);
+                    if (subqueryEnd !== -1) {
+                        const afterSubquery = afterJoin.substring(subqueryEnd + 1).trim();
+                        // Alias might be on the next line
+                        const aliasMatch = afterSubquery.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/m);
+                        if (aliasMatch) {
+                            aliases[aliasMatch[1]] = `SUBQUERY:${aliasMatch[1]}`;
+                            
+                            // Store full subquery content
+                            const subqueryContent = afterJoin.substring(1, subqueryEnd);
+                            debugData.subqueries.push({
+                                alias: aliasMatch[1],
+                                location: 'JOIN',
+                                type: 'JOIN_SUBQUERY',
+                                joinType: match[0].trim(),
+                                query: subqueryContent
+                            });
+                        }
+                    }
+                } else {
+                    // JOIN with regular table
+                    const tableMatch = afterJoin.match(/^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i);
+                    if (tableMatch) {
+                        aliases[tableMatch[2]] = tableMatch[1];
+                    }
+                }
+            }
+        }
+
+        function parseSelectFields(selectClause) {
+            const fields = [];
+            let depth = 0;
+            let currentField = '';
+            let inString = false;
+            let stringChar = '';
+            let inCase = false;
+            let caseDepth = 0;
+
+            for (let i = 0; i < selectClause.length; i++) {
+                const char = selectClause[i];
+                const prevChar = i > 0 ? selectClause[i - 1] : '';
+                const nextFive = selectClause.substring(i, i + 5).toUpperCase();
+                const nextThree = selectClause.substring(i, i + 3).toUpperCase();
+
+                // Handle string literals
+                if ((char === '"' || char === "'") && prevChar !== '\\') {
+                    if (!inString) {
+                        inString = true;
+                        stringChar = char;
+                    } else if (char === stringChar) {
+                        inString = false;
+                        stringChar = '';
+                    }
+                }
+
+                if (!inString) {
+                    // Track CASE statements
+                    if (nextFive === 'CASE ' || nextFive === 'CASE\n' || nextFive === 'CASE\t') {
+                        inCase = true;
+                        caseDepth++;
+                    }
+                    if (nextThree === 'END' && inCase) {
+                        caseDepth--;
+                        if (caseDepth === 0) {
+                            inCase = false;
+                        }
+                    }
+
+                    if (char === '(') depth++;
+                    if (char === ')') depth--;
+
+                    // Only split on commas that are not inside parentheses or CASE statements
+                    if (char === ',' && depth === 0 && !inCase) {
+                        if (currentField.trim()) {
+                            fields.push(parseField(currentField.trim()));
+                        }
+                        currentField = '';
+                        continue;
+                    }
+                }
+
+                currentField += char;
+            }
+
+            // Add the last field
+            if (currentField.trim()) {
+                fields.push(parseField(currentField.trim()));
+            }
+
+            return fields;
+        }
+
+        function parseField(fieldText) {
+            // Remove extra whitespace
+            fieldText = fieldText.replace(/\s+/g, ' ').trim();
+            
+            // Look for AS keyword (case-insensitive)
+            const asMatch = fieldText.match(/^(.*?)\s+AS\s+([a-zA-Z_][a-zA-Z0-9_]*)$/i);
+            if (asMatch) {
+                return {
+                    expression: asMatch[1].trim(),
+                    alias: asMatch[2].trim()
+                };
+            }
+
+            // Check if there's an implicit alias (expression followed by identifier)
+            // But be careful not to confuse function calls or expressions
+            const parts = fieldText.split(/\s+/);
+            if (parts.length >= 2) {
+                const lastPart = parts[parts.length - 1];
+                const beforeLast = parts.slice(0, -1).join(' ');
+                
+                // Check if last part looks like an alias and before it is a complete expression
+                if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(lastPart) && 
+                    !isKeyword(lastPart) &&
+                    (beforeLast.includes('.') || beforeLast.includes('(') || beforeLast.includes(')'))) {
+                    return {
+                        expression: beforeLast,
+                        alias: lastPart
+                    };
+                }
+            }
+
+            // No alias found - derive from expression
+            return {
+                expression: fieldText,
+                alias: deriveAliasFromExpression(fieldText)
+            };
+        }
+
+        function deriveAliasFromExpression(expression) {
+            // Try to extract column name from table.column
+            const tableColumnMatch = expression.match(/\.([a-zA-Z_][a-zA-Z0-9_]*)$/);
+            if (tableColumnMatch) {
+                return tableColumnMatch[1];
+            }
+            
+            // Simple column reference
+            const simpleColumnMatch = expression.match(/^([a-zA-Z_][a-zA-Z0-9_]*)$/);
+            if (simpleColumnMatch) {
+                return simpleColumnMatch[1];
+            }
+            
+            // Default to generic name
+            return 'column';
+        }
+
+        function mapFieldsToViewColumns(selectFields, viewColumns, aliases) {
+            const mappings = [];
+            
+            // If view columns are defined, map by position
+            if (viewColumns && viewColumns.length > 0) {
+                for (let i = 0; i < Math.min(selectFields.length, viewColumns.length); i++) {
+                    const field = selectFields[i];
+                    const viewCol = viewColumns[i];
+                    
+                    mappings.push({
+                        level: 1,
+                        sourceTable: getSourceTableForExpression(field.expression, aliases),
+                        sourceColumn: extractSourceColumns(field.expression),
+                        sourceExpression: field.expression,
+                        targetColumn: viewCol.name,
+                        targetComment: viewCol.comment,
+                        selectAlias: field.alias,
+                        transformation: getTransformation(field.expression),
+                        aliasesUsed: detectAliasesInExpression(field.expression, aliases)
+                    });
+                }
+                
+                // Warn if counts don't match
+                if (selectFields.length !== viewColumns.length) {
+                    console.warn(`Warning: SELECT has ${selectFields.length} fields but VIEW defines ${viewColumns.length} columns`);
+                }
+            } else {
+                // No view columns defined - use SELECT aliases as target columns
+                selectFields.forEach(field => {
+                    mappings.push({
+                        level: 1,
+                        sourceTable: getSourceTableForExpression(field.expression, aliases),
+                        sourceColumn: extractSourceColumns(field.expression),
+                        sourceExpression: field.expression,
+                        targetColumn: field.alias,
+                        targetComment: '',
+                        selectAlias: field.alias,
+                        transformation: getTransformation(field.expression),
+                        aliasesUsed: detectAliasesInExpression(field.expression, aliases)
+                    });
+                });
+            }
+            
+            return mappings;
+        }
+
+        function getSourceTableForExpression(expression, aliases) {
+            // Find all aliases used in the expression
+            const aliasPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)\./g;
+            const aliasesFound = new Set();
+            let match;
+            
+            while ((match = aliasPattern.exec(expression)) !== null) {
+                const alias = match[1];
+                if (aliases[alias]) {
+                    aliasesFound.add(alias);
+                }
+            }
+            
+            if (aliasesFound.size === 0) {
+                return 'No table reference';
+            } else if (aliasesFound.size === 1) {
+                const alias = Array.from(aliasesFound)[0];
+                const source = aliases[alias];
+                if (source.startsWith('SUBQUERY:')) {
+                    return `${source}`;
+                } else if (source.startsWith('CTE:')) {
+                    return `${source}`;
+                } else {
+                    return `${source} (${alias})`;
+                }
+            } else {
+                // Multiple tables referenced
+                const sources = Array.from(aliasesFound).map(alias => {
+                    const source = aliases[alias];
+                    if (source.startsWith('SUBQUERY:') || source.startsWith('CTE:')) {
+                        return source;
+                    }
+                    return `${source} (${alias})`;
+                });
+                return sources.join(', ');
+            }
+        }
+
+        function extractSourceColumns(expression) {
+            const columns = new Set();
+            
+            // Match table.column patterns
+            const tableColumnPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+            let match;
+            
+            while ((match = tableColumnPattern.exec(expression)) !== null) {
+                columns.add(match[1]);
+            }
+            
+            if (columns.size > 0) {
+                return Array.from(columns).join(', ');
+            }
+            
+            // Try to find standalone column names (excluding functions and keywords)
+            const standalonePattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+            const keywords = ['SELECT', 'FROM', 'WHERE', 'AS', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL',
+                            'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'CAST', 'CONVERT', 'UPPER', 'LOWER',
+                            'TRIM', 'LTRIM', 'RTRIM', 'COALESCE', 'NVL', 'IFNULL', 'SUM', 'COUNT',
+                            'AVG', 'MIN', 'MAX', 'DISTINCT', 'PARTITION', 'BY', 'ORDER', 'OVER',
+                            'ROW_NUMBER', 'RANK', 'DENSE_RANK', 'QUALIFY'];
+            
+            while ((match = standalonePattern.exec(expression)) !== null) {
+                if (!keywords.includes(match[1].toUpperCase()) && !isFunction(match[1], expression, match.index)) {
+                    columns.add(match[1]);
+                }
+            }
+            
+            return columns.size > 0 ? Array.from(columns).join(', ') : 'Complex Expression';
+        }
+
+        function isFunction(word, expression, position) {
+            // Check if the word is followed by an opening parenthesis
+            const afterWord = expression.substring(position + word.length).trim();
+            return afterWord.startsWith('(');
+        }
+
+        function detectAliasesInExpression(expression, aliases) {
+            const aliasesFound = [];
+            const aliasPattern = /\b([a-zA-Z_][a-zA-Z0-9_]*)\./g;
+            let match;
+            
+            while ((match = aliasPattern.exec(expression)) !== null) {
+                const alias = match[1];
+                if (aliases[alias]) {
+                    const source = aliases[alias];
+                    let type = 'table';
+                    if (source.startsWith('SUBQUERY:')) type = 'subquery';
+                    else if (source.startsWith('CTE:')) type = 'cte';
+                    
+                    aliasesFound.push({
+                        alias: alias,
+                        source: source,
+                        type: type
+                    });
+                }
+            }
+            
+            return aliasesFound;
+        }
+
+        function isKeyword(word) {
+            const keywords = [
+                'SELECT', 'FROM', 'WHERE', 'JOIN', 'ON', 'AS', 'AND', 'OR', 'NOT',
+                'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'UPPER', 'LOWER', 'TRIM',
+                'CAST', 'CONVERT', 'SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'QUALIFY',
+                'PARTITION', 'BY', 'ORDER', 'ROW_NUMBER', 'OVER', 'ASC', 'DESC',
+                'GROUP', 'HAVING', 'DISTINCT', 'UNION', 'ALL', 'LIMIT', 'OFFSET'
+            ];
+            return keywords.includes(word.toUpperCase());
+        }
+
+        function getTransformation(expression) {
+            const expr = expression.toUpperCase();
+            const transformations = [];
+            
+            if (expr.includes('CASE')) transformations.push('CASE statement');
+            if (expr.includes('::')) transformations.push('Type cast (::)');
+            if (expr.includes('CAST(')) transformations.push('CAST()');
+            if (expr.includes('UPPER(')) transformations.push('UPPER()');
+            if (expr.includes('LOWER(')) transformations.push('LOWER()');
+            if (expr.includes('TRIM(')) transformations.push('TRIM()');
+            if (expr.includes('LTRIM(')) transformations.push('LTRIM()');
+            if (expr.includes('RTRIM(')) transformations.push('RTRIM()');
+            if (expr.includes('COALESCE(')) transformations.push('COALESCE()');
+            if (expr.includes('NVL(')) transformations.push('NVL()');
+            if (expr.includes('IFNULL(')) transformations.push('IFNULL()');
+            if (expr.includes('ROW_NUMBER()')) transformations.push('ROW_NUMBER()');
+            if (expr.includes('RANK()')) transformations.push('RANK()');
+            if (expr.includes('DENSE_RANK()')) transformations.push('DENSE_RANK()');
+            if (expr.includes('SUM(')) transformations.push('SUM()');
+            if (expr.includes('COUNT(')) transformations.push('COUNT()');
+            if (expr.includes('AVG(')) transformations.push('AVG()');
+            if (expr.includes('MIN(')) transformations.push('MIN()');
+            if (expr.includes('MAX(')) transformations.push('MAX()');
+            if (expr.includes('CONCAT(')) transformations.push('CONCAT()');
+            if (expr.includes('SUBSTRING(') || expr.includes('SUBSTR(')) transformations.push('SUBSTRING()');
+            if (expr.includes('REPLACE(')) transformations.push('REPLACE()');
+            if (expr.includes('TO_DATE(')) transformations.push('TO_DATE()');
+            if (expr.includes('TO_CHAR(')) transformations.push('TO_CHAR()');
+            if (expr.includes('DATE_TRUNC(')) transformations.push('DATE_TRUNC()');
+            if (expr.includes('DATEADD(')) transformations.push('DATEADD()');
+            if (expr.includes('DATEDIFF(')) transformations.push('DATEDIFF()');
+            
+            return transformations.length > 0 ? transformations.join(', ') : 'None';
+        }
+
+        function extractCompleteJoinInfo(fromAndJoinsClause) {
+            const joins = [];
+            const originalClause = fromAndJoinsClause;
+            
+            console.log('Parsing FROM and JOINs:', originalClause.substring(0, 200));
+            
+            // First, check if the FROM clause itself is a subquery (not a JOIN)
+            if (originalClause.trim().match(/^\s*\(/)) {
+                // FROM starts with a subquery - extract the full content
+                const subqueryStart = originalClause.indexOf('(');
+                const subqueryEnd = findMatchingParen(originalClause, subqueryStart);
+                const subqueryContent = originalClause.substring(subqueryStart + 1, subqueryEnd);
+                const afterSubquery = originalClause.substring(subqueryEnd + 1).trim();
+                const aliasMatch = afterSubquery.match(/^([a-zA-Z_][a-zA-Z0-9_]*)/);
+                
+                if (aliasMatch) {
+                    // Add the FROM subquery as a special entry with full content
+                    joins.push({
+                        type: 'FROM',
+                        table: 'SUBQUERY',
+                        alias: aliasMatch[1],
+                        condition: 'N/A (FROM clause)',
+                        isSubquery: true,
+                        subqueryPreview: subqueryContent.trim().substring(0, 200) + (subqueryContent.length > 200 ? '...' : ''),
+                        fullSubquery: subqueryContent.trim()
+                    });
+                }
+            } else {
+                // Regular FROM table - add it to the join info
+                const fromMatch = originalClause.match(/^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i);
+                if (fromMatch) {
+                    joins.push({
+                        type: 'FROM',
+                        table: fromMatch[1],
+                        alias: fromMatch[2],
+                        condition: 'N/A (FROM clause)',
+                        isSubquery: false
+                    });
+                } else {
+                    // Single table without alias
+                    const singleTableMatch = originalClause.match(/^\s*([a-zA-Z_][a-zA-Z0-9_.]*)/i);
+                    if (singleTableMatch) {
+                        const tableName = singleTableMatch[1];
+                        const tableAlias = tableName.split('.').pop();
+                        joins.push({
+                            type: 'FROM',
+                            table: tableName,
+                            alias: tableAlias,
+                            condition: 'N/A (FROM clause)',
+                            isSubquery: false
+                        });
+                    }
+                }
+            }
+            
+            // Split by lines and look for JOIN keywords line by line
+            const lines = originalClause.split('\n');
+            let currentIndex = 0;
+            let inJoin = false;
+            let joinType = '';
+            let joinStartIndex = -1;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const trimmedLine = line.trim();
+                
+                // Skip comment lines
+                if (trimmedLine.startsWith('//') || trimmedLine.startsWith('--')) {
+                    currentIndex += line.length + 1;
+                    continue;
+                }
+                
+                // Check if this line contains a JOIN keyword
+                const joinMatch = trimmedLine.match(/^(LEFT|RIGHT|INNER|FULL|CROSS)?\s*JOIN\s*/i);
+                if (joinMatch) {
+                    console.log('Found JOIN at line:', i, trimmedLine);
+                    inJoin = true;
+                    joinType = (joinMatch[1] || 'INNER').toUpperCase();
+                    joinStartIndex = currentIndex + line.indexOf(joinMatch[0]) + joinMatch[0].length;
+                    
+                    // Check if the JOIN content starts on the same line
+                    const afterJoinOnLine = trimmedLine.substring(joinMatch[0].length).trim();
+                    if (afterJoinOnLine) {
+                        // Content on same line as JOIN
+                        const remainingContent = originalClause.substring(joinStartIndex);
+                        const joinInfo = parseJoinContent(remainingContent, joinType);
+                        if (joinInfo) {
+                            joins.push(joinInfo);
+                        }
+                        inJoin = false;
+                    }
+                } else if (inJoin && trimmedLine && !trimmedLine.startsWith('//')) {
+                    // This is the line after JOIN keyword
+                    const remainingContent = originalClause.substring(currentIndex + line.search(/\S/));
+                    const joinInfo = parseJoinContent(remainingContent, joinType);
+                    if (joinInfo) {
+                        joins.push(joinInfo);
+                    }
+                    inJoin = false;
+                }
+                
+                currentIndex += line.length + 1; // +1 for newline
+            }
+            
+            return joins;
+        }
+        
+        function parseJoinContent(content, joinType) {
+            content = content.trim();
+            
+            let joinInfo = {
+                type: joinType + ' JOIN',
+                table: '',
+                alias: '',
+                condition: '',
+                isSubquery: false
+            };
+            
+            if (content.startsWith('(')) {
+                // Subquery JOIN
+                const subqueryEnd = findMatchingParen(content, 0);
+                if (subqueryEnd !== -1) {
+                    const subqueryContent = content.substring(1, subqueryEnd);
+                    const afterSubquery = content.substring(subqueryEnd + 1).trim();
+                    
+                    // Get alias - might be on next line
+                    const aliasMatch = afterSubquery.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/m);
+                    if (aliasMatch) {
+                        joinInfo.alias = aliasMatch[1];
+                        joinInfo.table = 'SUBQUERY';
+                        joinInfo.isSubquery = true;
+                        joinInfo.subqueryPreview = subqueryContent.trim().substring(0, 200) + (subqueryContent.length > 200 ? '...' : '');
+                        joinInfo.fullSubquery = subqueryContent.trim();
+                        
+                        // Get ON condition - may span multiple lines
+                        const onMatch = afterSubquery.match(/\s+ON\s+([\s\S]*?)(?=\s*(?:\/\/|--|LEFT|RIGHT|INNER|FULL|CROSS|JOIN|WHERE|GROUP|ORDER|QUALIFY|;|$))/i);
+                        if (onMatch) {
+                            joinInfo.condition = onMatch[1].trim().replace(/\s+/g, ' ');
+                        }
+                        
+                        return joinInfo;
+                    }
+                }
+            } else {
+                // Regular table JOIN
+                const tableMatch = content.match(/^\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ON\s+([\s\S]*?)(?=\s*(?:\/\/|--|LEFT|RIGHT|INNER|FULL|CROSS|JOIN|WHERE|GROUP|ORDER|;|$))/i);
+                if (tableMatch) {
+                    joinInfo.table = tableMatch[1];
+                    joinInfo.alias = tableMatch[2];
+                    joinInfo.condition = tableMatch[3].trim().replace(/\s+/g, ' ');
+                    return joinInfo;
+                }
+            }
+            
+            return null;
+        }
+
+        function displayMapping(mapping) {
+            const outputDiv = document.getElementById('output');
+            
+            let html = `<h2>📊 Source to Target Mapping - ${mapping.viewName}</h2>`;
+            
+            // Display view comment if it exists
+            if (mapping.viewComment) {
+                html += `
+                    <div class="view-comment">
+                        <h3>📄 View Description</h3>
+                        <p>${mapping.viewComment}</p>
+                    </div>
+                `;
+            }
+            
+            // Two column layout
+            html += '<div class="two-column-layout">';
+            
+            // Left column - View columns
+            html += '<div class="left-column">';
+            if (mapping.viewColumns && mapping.viewColumns.length > 0) {
+                html += displayViewColumns(mapping.viewColumns);
+            }
+            html += '</div>';
+            
+            // Right column - Aliases and Field mappings
+            html += '<div class="right-column">';
+            
+            // Display detected aliases
+            if (mapping.aliases && Object.keys(mapping.aliases).length > 0) {
+                html += displayAliases(mapping.aliases);
+            }
+            
+            // Display main field mappings
+            html += displayFieldMappings(mapping.fields);
+            
+            html += '</div>'; // Close right column
+            html += '</div>'; // Close two column layout
+            
+            // Display join information below the two columns
+            if (mapping.joinInfo && mapping.joinInfo.length > 0) {
+                html += displayJoinInfo(mapping.joinInfo);
+            }
+
+            html += `<button class="copy-btn" onclick="copyToClipboard()">📋 Copy Markdown Table</button>`;
+            
+            outputDiv.innerHTML = html;
+            
+            // Initialize resizable columns after rendering
+            setTimeout(initResizableColumns, 100);
+        }
+
+        function displayViewColumns(viewColumns) {
+            let html = `
+                <h3>📝 View Column Definitions</h3>
+                <div class="table-container">
+                    <table id="viewColumnsTable">
+                        <thead>
+                            <tr>
+                                <th class="resizable" style="width: 50px;">#</th>
+                                <th class="resizable" style="width: 150px;">Column Name</th>
+                                <th style="width: 200px;">Comment</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            viewColumns.forEach((col, index) => {
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><strong>${col.name}</strong></td>
+                        <td>${col.comment || '<span style="color: #9ca3af; font-style: italic;">No comment</span>'}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function displayAliases(aliases) {
+            let html = `
+                <h3>🏷️ Detected Table/View/Subquery Aliases</h3>
+                <div class="table-container">
+                    <table id="aliasesTable">
+                        <thead>
+                            <tr>
+                                <th class="resizable" style="width: 100px;">Alias</th>
+                                <th class="resizable" style="width: 250px;">Source</th>
+                                <th style="width: 100px;">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            Object.entries(aliases).forEach(([alias, source]) => {
+                let type = 'Table';
+                let badge = 'alias-table';
+                
+                // Check if source is a view (contains VW_)
+                if (source.includes('VW_')) {
+                    type = 'View';
+                    badge = 'alias-view';
+                } else if (source.startsWith('SUBQUERY:')) {
+                    type = 'Subquery';
+                    badge = 'alias-subquery';
+                } else if (source.startsWith('CTE:')) {
+                    type = 'CTE';
+                    badge = 'alias-cte';
+                }
+                
+                html += `
+                    <tr>
+                        <td><strong>${alias}</strong></td>
+                        <td><span class="source-expression">${source}</span></td>
+                        <td><span class="alias-badge ${badge}">${type}</span></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function displayFieldMappings(fields) {
+            let html = `
+                <h3>🎯 Complete Field Mappings</h3>
+                <div class="table-container">
+                    <table id="fieldMappingsTable">
+                        <thead>
+                            <tr>
+                                <th class="resizable" style="width: 40px;">#</th>
+                                <th class="resizable" style="width: 120px;">Target Column</th>
+                                <th class="resizable" style="width: 150px;">Source Table(s)</th>
+                                <th class="resizable" style="width: 120px;">Source Column(s)</th>
+                                <th class="resizable" style="width: 200px;">Source Expression</th>
+                                <th class="resizable" style="width: 100px;">Transformations</th>
+                                <th style="width: 100px;">Aliases Used</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            fields.forEach((field, index) => {
+                let aliasInfo = '';
+                if (field.aliasesUsed && field.aliasesUsed.length > 0) {
+                    field.aliasesUsed.forEach(info => {
+                        let badgeClass = 'alias-table';
+                        // Check if the source is a view
+                        if (info.source && info.source.includes('VW_')) {
+                            badgeClass = 'alias-view';
+                        } else if (info.type === 'subquery') {
+                            badgeClass = 'alias-subquery';
+                        } else if (info.type === 'cte') {
+                            badgeClass = 'alias-cte';
+                        }
+                        aliasInfo += `<span class="alias-badge ${badgeClass}">${info.alias}</span>`;
+                    });
+                } else {
+                    aliasInfo = '<span style="color: #9ca3af; font-style: italic;">None</span>';
+                }
+                
+                const targetDisplay = field.targetComment ? 
+                    `<strong>${field.targetColumn}</strong><br><small style="color: #6b7280;">${field.targetComment}</small>` :
+                    `<strong>${field.targetColumn}</strong>`;
+                
+                html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${targetDisplay}</td>
+                        <td>${field.sourceTable}</td>
+                        <td>${field.sourceColumn}</td>
+                        <td><div class="source-expression">${field.sourceExpression}</div></td>
+                        <td>${field.transformation}</td>
+                        <td>${aliasInfo}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function displayJoinInfo(joins) {
+            let html = `
+                <h3>🔗 Table/View Sources & Join Information</h3>
+                <div class="table-container">
+                    <table id="joinInfoTable">
+                        <thead>
+                            <tr>
+                                <th class="resizable" style="width: 100px;">Type</th>
+                                <th class="resizable" style="width: 300px;">Table/Source</th>
+                                <th class="resizable" style="width: 80px;">Alias</th>
+                                <th class="resizable" style="width: 250px;">Join Condition</th>
+                                <th style="width: 100px;">Source Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            joins.forEach(join => {
+                let typeLabel = '<span class="alias-badge alias-table">TABLE</span>';
+                let rowStyle = '';
+                
+                // Style the FROM row differently
+                if (join.type === 'FROM') {
+                    rowStyle = 'background-color: #f0f9ff;';
+                }
+                
+                // Check source type
+                if (join.table && join.table.includes('VW_')) {
+                    typeLabel = '<span class="alias-badge alias-view">VIEW</span>';
+                } else if (join.isSubquery) {
+                    typeLabel = '<span class="alias-badge alias-subquery">SUBQUERY</span>';
+                }
+                
+                // For subqueries, show more detailed preview
+                let tableDisplay = join.table;
+                if (join.isSubquery && join.subqueryPreview) {
+                    // Create a formatted preview with line breaks preserved
+                    const preview = join.subqueryPreview
+                        .replace(/SELECT/gi, '<strong>SELECT</strong>')
+                        .replace(/FROM/gi, '<strong>FROM</strong>')
+                        .replace(/WHERE/gi, '<strong>WHERE</strong>')
+                        .replace(/JOIN/gi, '<strong>JOIN</strong>')
+                        .replace(/AS\s+(\w+)/gi, '<strong>AS</strong> <em>$1</em>');
+                    
+                    tableDisplay = `<div class="source-expression" style="max-width: 400px; white-space: pre-wrap;" title="Click to see full subquery">
+                        ${preview}
+                    </div>`;
+                } else if (!join.isSubquery) {
+                    tableDisplay = `<span class="source-expression">${join.table}</span>`;
+                }
+                
+                const typeDisplay = join.type === 'FROM' ? 
+                    '<strong style="color: #0ea5e9;">FROM</strong>' : 
+                    `<strong>${join.type}</strong>`;
+                
+                html += `
+                    <tr style="${rowStyle}">
+                        <td>${typeDisplay}</td>
+                        <td>${tableDisplay}</td>
+                        <td><strong>${join.alias}</strong></td>
+                        <td>${join.condition === 'N/A (FROM clause)' ? 
+                            '<span style="color: #9ca3af; font-style: italic;">N/A (FROM clause)</span>' : 
+                            `<div class="source-expression">${join.condition}</div>`}
+                        </td>
+                        <td>${typeLabel}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return html;
+        }
+
+        function showDebugInfo() {
+            const debugSection = document.getElementById('debugSection');
+            
+            if (debugSection.style.display === 'none') {
+                let debugHtml = '<div class="debug-info"><h3>🔍 Debug Information</h3>';
+                
+                debugHtml += '<h4>View Columns:</h4>';
+                debugHtml += '<pre>' + JSON.stringify(debugData.viewColumns, null, 2) + '</pre>';
+                
+                debugHtml += '<h4>SELECT Fields:</h4>';
+                debugHtml += '<pre>' + JSON.stringify(debugData.selectFields, null, 2) + '</pre>';
+                
+                debugHtml += '<h4>Detected Aliases:</h4>';
+                debugHtml += '<pre>' + JSON.stringify(debugData.aliases, null, 2) + '</pre>';
+                
+                debugHtml += '<h4>Detected Subqueries:</h4>';
+                debugHtml += '<pre>' + JSON.stringify(debugData.subqueries, null, 2) + '</pre>';
+                
+                debugHtml += '<h4>Detected Joins:</h4>';
+                debugHtml += '<pre>' + JSON.stringify(debugData.joins, null, 2) + '</pre>';
+                
+                debugHtml += '<h4>SELECT Clause:</h4>';
+                debugHtml += '<pre>' + (debugData.selectClause || 'Not parsed') + '</pre>';
+                
+                debugHtml += '<h4>FROM and JOINs Clause (first 500 chars):</h4>';
+                debugHtml += '<pre>' + ((debugData.fromAndJoinsClause || 'Not parsed').substring(0, 500)) + '</pre>';
+                
+                // Check console for any logs
+                debugHtml += '<h4>Note:</h4>';
+                debugHtml += '<p>Check browser console (F12) for additional parsing logs.</p>';
+                
+                debugHtml += '</div>';
+                debugSection.innerHTML = debugHtml;
+                debugSection.style.display = 'block';
+            } else {
+                debugSection.style.display = 'none';
+            }
+        }
+
+        function copyToClipboard() {
+            if (!lastParsedMapping) return;
+
+            let markdown = `# Source to Target Mapping - ${lastParsedMapping.viewName}\n\n`;
+            
+            // Add view columns if defined
+            if (lastParsedMapping.viewColumns && lastParsedMapping.viewColumns.length > 0) {
+                markdown += `## View Column Definitions\n\n`;
+                markdown += `| Position | Column Name | Comment |\n`;
+                markdown += `|----------|-------------|----------|\n`;
+                
+                lastParsedMapping.viewColumns.forEach((col, index) => {
+                    markdown += `| ${index + 1} | ${col.name} | ${col.comment || 'N/A'} |\n`;
+                });
+                markdown += `\n`;
+            }
+            
+            // Add aliases table
+            if (lastParsedMapping.aliases && Object.keys(lastParsedMapping.aliases).length > 0) {
+                markdown += `## Detected Aliases\n\n`;
+                markdown += `| Alias | Source | Type |\n`;
+                markdown += `|-------|--------|------|\n`;
+                
+                Object.entries(lastParsedMapping.aliases).forEach(([alias, source]) => {
+                    let type = 'Table';
+                    if (source.startsWith('SUBQUERY:')) type = 'Subquery';
+                    else if (source.startsWith('CTE:')) type = 'CTE';
+                    markdown += `| ${alias} | ${source} | ${type} |\n`;
+                });
+                markdown += `\n`;
+            }
+            
+            // Add field mappings
+            markdown += `## Field Mappings\n\n`;
+            markdown += `| # | Target Column | Source Table | Source Column | Source Expression | Transformation |\n`;
+            markdown += `|---|---------------|--------------|---------------|-------------------|----------------|\n`;
+
+            lastParsedMapping.fields.forEach((field, index) => {
+                markdown += `| ${index + 1} | ${field.targetColumn} | ${field.sourceTable} | ${field.sourceColumn} | ${field.sourceExpression} | ${field.transformation} |\n`;
+            });
+
+            // Add join information
+            if (lastParsedMapping.joinInfo && lastParsedMapping.joinInfo.length > 0) {
+                markdown += `\n## Join Information\n\n`;
+                markdown += `| Join Type | Table | Alias | Condition |\n`;
+                markdown += `|-----------|-------|-------|------------|\n`;
+                
+                lastParsedMapping.joinInfo.forEach(join => {
+                    const table = join.isSubquery ? 'SUBQUERY' : join.table;
+                    markdown += `| ${join.type} | ${table} | ${join.alias} | ${join.condition} |\n`;
+                });
+            }
+
+            navigator.clipboard.writeText(markdown).then(() => {
+                alert('Markdown table copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy to clipboard: ' + err);
+            });
+        }
+
+        function clearAll() {
+            document.getElementById('ddlInput').value = '';
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('debugSection').innerHTML = '';
+            document.getElementById('debugSection').style.display = 'none';
+            lastParsedMapping = null;
+            debugData = {};
+        }
+
+        function loadExample() {
+            const example = `CREATE OR REPLACE VIEW sales.customer_employee_analysis(
+    email COMMENT 'Customer email address',
+    customer_id COMMENT 'Unique customer identifier',
+    registration_date COMMENT 'Date customer registered',
+    employee_id COMMENT 'Employee sales ID if customer is employee',
+    is_active_employee COMMENT 'Whether customer is active employee',
+    total_orders COMMENT 'Total number of orders',
+    total_revenue COMMENT 'Total revenue from customer'
+) AS
+SELECT 
+    m2.email,
+    m2.customer_id,
+    m2.registration_date,
+    ukg.atb_sls_id,
+    ukg.is_active,
+    ord.total_orders,
+    ord.total_revenue
+FROM customer_master m2
+LEFT JOIN (
+    SELECT 
+        UPPER(email_address) as email_address,
+        atb_sls_id,
+        is_active
+    FROM COOKED.PREP_ZUMZ.VW_EMPLOYEES
+    QUALIFY row_number() over (partition by email_address order by date_of_last_hire DESC) = 1
+) ukg ON m2.email = ukg.email_address
+LEFT JOIN (
+    SELECT 
+        customer_id,
+        COUNT(*) as total_orders,
+        SUM(order_value) as total_revenue
+    FROM orders
+    WHERE order_date >= '2024-01-01'
+    GROUP BY customer_id
+) ord ON m2.customer_id = ord.customer_id
+WHERE m2.is_verified = TRUE;`;
+
+            document.getElementById('ddlInput').value = example;
+        }
+
+        function initResizableColumns() {
+            const tables = document.querySelectorAll('table');
+            tables.forEach(table => {
+                const headers = table.querySelectorAll('th.resizable');
+                headers.forEach(header => {
+                    let isResizing = false;
+                    let startX = 0;
+                    let startWidth = 0;
+                    
+                    // Create resize handle
+                    const resizeHandle = document.createElement('div');
+                    resizeHandle.style.position = 'absolute';
+                    resizeHandle.style.right = '0';
+                    resizeHandle.style.top = '0';
+                    resizeHandle.style.bottom = '0';
+                    resizeHandle.style.width = '5px';
+                    resizeHandle.style.cursor = 'col-resize';
+                    resizeHandle.style.userSelect = 'none';
+                    
+                    header.style.position = 'relative';
+                    header.appendChild(resizeHandle);
+                    
+                    resizeHandle.addEventListener('mousedown', (e) => {
+                        isResizing = true;
+                        startX = e.pageX;
+                        startWidth = header.offsetWidth;
+                        document.body.style.cursor = 'col-resize';
+                        e.preventDefault();
+                    });
+                    
+                    document.addEventListener('mousemove', (e) => {
+                        if (!isResizing) return;
+                        const width = startWidth + (e.pageX - startX);
+                        if (width > 50) { // Minimum width
+                            header.style.width = width + 'px';
+                        }
+                    });
+                    
+                    document.addEventListener('mouseup', () => {
+                        if (isResizing) {
+                            isResizing = false;
+                            document.body.style.cursor = '';
+                        }
+                    });
+                });
+            });
+        }
+
+        function loadYourExample() {
+            const example = `create or replace view COOKED.PREP_ZUMZ.VW_CUSTOMERS(
+	ID,
+	EMAIL,
+	FIRST_NAME,
+	LAST_NAME,
+	DATE_OF_BIRTH,
+	MOBILE_NUMBER,
+	BILLING_STREET,
+	BILLING_CITY,
+	BILLING_REGION,
+	BILLING_POSTCODE,
+	BILLING_COUNTRY,
+	DEFAULT_ADDRESS,
+	SHIPPING_STREET,
+	SHIPPING_CITY,
+	SHIPPING_REGION,
+	SHIPPING_POSTCODE,
+	SHIPPING_COUNTRY,
+	GENDER,
+	GENDER_OTHER,
+	ETHNICITY,
+	ETHNICITY_OTHER,
+	MYZUMIEZ_LOCATION_ID,
+	SIZE_BOTTOM,
+	SIZE_SHOE,
+	SIZE_TOP,
+	IS_SUBSCRIBED,
+	M2_CREATED_DATE,
+	M2_UPDATED_DATE,
+	ATT_HAS_APP,
+	ATT_HAS_APP_FIRST_SET,
+	IS_ENHANCED_PROFILE,
+	LOYALTY_ID,
+	LOYALTY_THIRD_PARTY_ID,
+	LOYALTY_USERNAME,
+	LOYALTY_IS_ACTIVE,
+	LOYALTY_LAST_LOGIN_DATE,
+	LOYALTY_IS_EMAIL_VERIFIED,
+	LOYALTY_IS_RECEIVE_EMAIL_UPDATES,
+	LOYALTY_IS_RECEIVE_SMS_UPDATES,
+	LOYALTY_TOTAL_POINTS,
+	LOYALTY_REDEEMABLE_POINTS,
+	LOYALTY_FAN_LEVEL_NAME,
+	LOYALTY_GENDER,
+	IS_EMPLOYEE,
+	EMPLOYEE_ID,
+	EMPLOYEE_STATUS
+) COMMENT='Customers base details: M2 data. Customer Loyalty data: Crowdtwist. "Is Employee" data: UKG.'
+ as 
+	
+SELECT m2.id 
+	, LEFT(UPPER(m2.email), 320)::VARCHAR(320)                       as email 
+    , UPPER(m2.firstname)      as first_name
+    , UPPER(m2.lastname)         as last_name
+    , m2.dob::date               as date_of_birth  
+    , m2.mobile_number           as mobile_number
+    , m2.billing_street
+    , m2.billing_city
+    , m2.billing_region
+    , m2.billing_postcode
+    , m2.billing_country
+    ,   TRIM(m2.billing_street) 
+        || ' ' || TRIM(m2.billing_city) 
+        || ',' || TRIM(m2.billing_region) 
+        || ' ' || TRIM(m2.billing_postcode)
+        || ' ' || TRIM(m2.billing_country)   as default_address 
+    , m2.shipping_street
+    , m2.shipping_city
+    , m2.shipping_region
+    , m2.shipping_postcode
+    , m2.shipping_country
+    , m2.att_gender::VARCHAR                                as gender 
+    , m2.att_gender_other                                   as gender_other 
+    , m2.att_ethnicity                                      as ethnicity 
+    , m2.att_ethnicity_other                                as ethnicity_other               
+    , m2.myzumiez_store_id::VARCHAR                         as myzumiez_location_id                             
+    , m2.size_bottom::VARCHAR                               as size_bottom 
+    , m2.size_shoe::VARCHAR                                 as size_shoe 
+    , m2.size_top::VARCHAR                                  as size_top 
+    , m2.is_subscribed::VARCHAR                             as is_subscribed 
+    , m2.created_at                                         as m2_created_date
+    , m2.updated_at                                         as m2_updated_date
+    , m2.ATT_HAS_APP
+    , m2.ATT_HAS_APP_FIRST_SET
+    , m2.is_enhanced_profile
+    , ct.id::VARCHAR                                        as loyalty_id
+    , ct.third_party_id::VARCHAR                            as loyalty_third_party_id 
+    , UPPER(ct.username::VARCHAR)                           as loyalty_username  
+    , ct.is_active::VARCHAR                                 as loyalty_is_active 
+    , ct.date_last_login::VARCHAR                           as loyalty_last_login_date 
+    , ct.email_is_verified::VARCHAR                         as loyalty_is_email_verified 
+    , ct.receive_email_updates::VARCHAR                     as loyalty_is_receive_email_updates 
+    , ct.receive_sms_updates::VARCHAR                       as loyalty_is_receive_sms_updates 
+    , ct.total_points::VARCHAR                              as loyalty_total_points 
+    , ct.redeemable_points::VARCHAR                         as loyalty_redeemable_points 
+    , ct.fan_level_name::VARCHAR                            as loyalty_fan_level_name 
+    , ct.gender::VARCHAR                                    as loyalty_gender
+    , CASE when m2.email ilike '%@zumiez.com' then 1 
+            when ukg.email_address is not null then 1 
+            else 0 
+        end                                                            as is_employee 
+    , ukg.atb_sls_id                                        as employee_id             
+    , ukg.is_active                                         as employee_status   
+
+FROM  COOKED.PREP_ZUMZ.VW_CUSTOMER_ATTRIBUTES_M2 m2 
+
+LEFT JOIN COOKED.PREP_ZUMZ.VW_CUSTOMER_ATTRIBUTES_CROWDTWIST ct 
+    ON TRY_CAST(m2.STASH_ID as numeric) = ct.id
+
+LEFT JOIN 
+(
+    SELECT UPPER(email_address) as email_address
+        , atb_sls_id
+        , is_active
+    FROM COOKED.PREP_ZUMZ.VW_EMPLOYEES
+    QUALIFY row_number() over (partition by email_address order by date_of_last_hire DESC) = 1
+) ukg 
+    ON m2.email = ukg.email_address
+;`;
+
+            document.getElementById('ddlInput').value = example;
+        }
+    </script>
+</body>
+</html>
